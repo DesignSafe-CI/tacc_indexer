@@ -1,7 +1,7 @@
 from os.path import split, join, getsize, isdir
 from os import walk, stat
 from datetime import datetime
-from tacc_indexer.libs.elasticsearch import Object
+from tacc_indexer.libs.es_api import Object
 from tacc_indexer.libs.agave import AgaveManager
 import sys
 import getopt
@@ -24,9 +24,6 @@ logger.addHandler(handler)
 
 
 AGAVE_FILESYSTEM = 'designsafe.storage.default'
-
-def usage():
-    print('<root_path> <path_to_index_root> <system_id> <api_server> <token> <refresh_token>\nroot_path: Path to start traversing for indexing.\npath_to_index_root: Path to remove from full filepath. If the files that are being indexed live in a local subdirectory this parameter should specify the part of the path to be deleted so the files can be indexed as if they existed in /.\nsystem_id: Remote system id to work on.\napi_server: Agave server api URL\ntoken: Token to create an Agave Client.\nrefresh_token: Refresh token for the Agave Client.')
 
 class Indexer(object):
     def __init__(self, start_path, del_path, system_id, api_server, token, refresh_token):
