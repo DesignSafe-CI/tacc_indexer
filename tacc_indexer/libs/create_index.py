@@ -31,9 +31,8 @@ def main(argv):
     #print 'Mapping: {}'.format(mappings)
     
     if es.indices.exists(i_to):
-        print 'i_to: {} exists'.format(i_to)
+        print 'new_index: {} exists. Deleting...'.format(i_to)
         es.indices.delete(i_to)
-        es.indices.create(i_to, {'settings': analyzers, 'mappings': mappings})
     else:
-        print 'i_to: {} dosn\'t exists'.format(i_to)
-
+        print 'new_index: {} dosn\'t exists'.format(i_to)
+    es.indices.create(i_to, {'settings': analyzers, 'mappings': mappings})
