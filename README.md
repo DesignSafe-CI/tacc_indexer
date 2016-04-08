@@ -53,7 +53,7 @@ There are multiple commands in this tool. Every command is prefixed with `tim` (
     Backup a specified index using bulk operations.
 
 + Usage:
-  - `tim-backup <from_index> <backup_index> <doc_type> <props_to_exclue>   
+  - `tim-backup <from_index> <backup_index> <doc_type> <props_to_exclue>`
 + Args:
   - from_index
     * Index/Alias name to copy data from.
