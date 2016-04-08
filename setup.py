@@ -15,8 +15,9 @@ setup(name = 'tacc_indexer',
         'elasticsearch_dsl'
       ],
       entry_points = {
-          'console_scripts': ['tinm=tacc_indexer.command_line:index',
-                              'tinm-create=tacc_indexer.command_line:create_index']
+          'console_scripts': ['tim=tacc_indexer.command_line:index',
+                              'tim-create=tacc_indexer.command_line:create_index', 
+                              'tim-backup=tacc_indexer.command_line:backup_index']
       }
       #test_suite = 'nose.collector',
       #test_require = ['nose'],

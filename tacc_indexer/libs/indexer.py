@@ -26,14 +26,16 @@ logger.addHandler(handler)
 AGAVE_FILESYSTEM = 'designsafe.storage.default'
 
 class Indexer(object):
-    def __init__(self, start_path, del_path, system_id, api_server, token, refresh_token):
+    def __init__(self, start_path, del_path, system_id, api_server = None, token = None, refresh_token = None):
         self.api_server = api_server
         self.token = token
         self.refresh_token = refresh_token
         self.system_id = system_id
         self.start_path = start_path
         self.del_path = del_path
-        self.mgr = AgaveManager(api_server = api_server, token = token, refresh_token = refresh_token)
+        self.mgr = None
+        if api_server is not None:
+            self.mgr = AgaveManager(api_server = api_server, token = token, refresh_token = refresh_token)
 
     def get_index_obj(self, filepath, filename):
         fn = join(filepath, filename)
@@ -192,7 +194,7 @@ class Indexer(object):
             self.process_filenames(root, fs_filenames, indexed_filenames)
             indexed_objs = self.remove_duplicates(indexed_objs)
             objs_to_delete = [o for o in indexed_objs if o.deleted]
-            if len(objs_to_delete) >= 1:
+            if self.mgr is not None and len(objs_to_delete) >= 1:
                 self.check_deleted(objs_to_delete)
                 dirs[:] = [d for d in dirs if d not in [nd.name for nd in objs_to_delete]]
                 #logger.info('dirs: {}'.format(dirs))
