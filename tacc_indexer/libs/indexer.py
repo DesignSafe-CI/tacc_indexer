@@ -1,7 +1,7 @@
 from os.path import split, join, getsize, isdir
 from os import walk, stat
 from datetime import datetime
-from tacc_indexer.libs.es_api import Object
+from tacc_indexer.libs.es_api import ESManager, Obj
 from tacc_indexer.libs.agave import AgaveManager
 import sys
 import getopt
@@ -26,7 +26,7 @@ logger.addHandler(handler)
 AGAVE_FILESYSTEM = 'designsafe.storage.default'
 
 class Indexer(object):
-    def __init__(self, start_path, del_path, system_id, api_server = None, token = None, refresh_token = None):
+    def __init__(self, start_path, del_path, system_id, api_server = None, token = None, refresh_token = None, hosts = None, **kwargs):
         self.api_server = api_server
         self.token = token
         self.refresh_token = refresh_token
@@ -34,8 +34,11 @@ class Indexer(object):
         self.start_path = start_path
         self.del_path = del_path
         self.mgr = None
+        self.esm = None
         if api_server is not None:
             self.mgr = AgaveManager(api_server = api_server, token = token, refresh_token = refresh_token)
+        if hosts is not None:
+            self.esm = ESManager(hosts, **kwargs)
 
     def get_index_obj(self, filepath, filename):
         fn = join(filepath, filename)
@@ -57,6 +60,7 @@ class Indexer(object):
             mime_type = 'text/directory'
             type = 'dir'
             format = 'folder'
+            file_type = 'folder'
         if path == '.' or path == '':
             path = '/'
         return {
@@ -76,14 +80,13 @@ class Indexer(object):
         }
 
     def save_obj(self, o):
-        o = Object(**o)
-        o.save()
+        self.esm.save(o)
 
     def del_obj(self, path, name):
         #print 'Searching for path: {}, name: {}'.format(path, name)
-        o = Object.get_exact_filepath(AGAVE_FILESYSTEM, path, name, self.del_path)
-        print '-' + join(o['path'], o['name'])
-        o.delete()
+        o = self.esm.get_exact_filepath(AGAVE_FILESYSTEM, path, name, self.del_path)
+        print '-' + join(o.path, o.name)
+        self.esm.delete(o)
 
     def index_files(self, root, files_to_index):
         #print 'objs to index'
@@ -105,7 +108,7 @@ class Indexer(object):
         for o in indexed_objs:
             if o.name in seen:
                 print '-' + join(o.path, o.name)
-                o.delete()
+                self.esm.delete(o)
             else:
                 seen.add(o.name)
                 ret.append(o)
@@ -113,9 +116,9 @@ class Indexer(object):
 
     def check_deleted(self, deleted_objs):
         home_dir = deleted_objs[0].path.split('/')[0]
-        trash = Object.get_exact_filepath(AGAVE_FILESYSTEM, home_dir, '.Trash')
+        trash = self.esm.get_exact_filepath(AGAVE_FILESYSTEM, home_dir, '.Trash')
         if trash is None:
-            trash = Object(**{
+            trash_doc = {
                 'mimeType': 'text/directory',
                 'name': '.Trash',
                 'format': 'folder',
@@ -127,38 +130,38 @@ class Indexer(object):
                 'systemId': AGAVE_FILESYSTEM,
                 'path': home_dir,
                 'type': 'dir',
-            })
-            trash.save()
+            }
+            trash = Obj.from_es(self.esm.save(trash_doc))
             logger.info('Created .Trash {}'.format(trash.to_dict()))
             self.mgr.mkdir(AGAVE_FILESYSTEM, home_dir, '.Trash')
         for o in deleted_objs:
-            o.update(oldPath = join(o.path, o.name))
-            if Object.get_exact_filepath(AGAVE_FILESYSTEM, join(trash.path, trash.name), o.name) is not None:
+            self.esm.update(o.meta.id, oldPath = join(o.path, o.name))
+            if self.esm.get_exact_filepath(AGAVE_FILESYSTEM, join(trash.path, trash.name), o.name) is not None:
                 new_name = o.name + '_' + datetime.now().isoformat().replace(':', '-')
                 logger.info('renaming to: {}'.format(new_name))
                 renamed = self.mgr.rename(AGAVE_FILESYSTEM, join(o.oldPath), new_name)
                 if renamed:
-                    o.update(name = new_name)
+                    self.esm.update(o.meta.id, name = new_name)
                 else:
                     return
 
             moved = self.mgr.move(AGAVE_FILESYSTEM, join(o.path, o.name), join(trash.path, trash.name))
             if moved: 
-                o.update(path = join(trash.path, trash.name), deleted = True)
+                self.esm.update(o.meta.id, path = join(trash.path, trash.name), deleted = True)
             else:
                 return
 
-            o.update(agavePath = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(o.path, o.name)))
+            self.esm.update(o.meta.id, agavePath = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(o.path, o.name)))
             logger.info('Object moved into trash {}'.format(o.to_dict()))
             if o.format == 'folder':
-                res, s = Object.search_exact_path(AGAVE_FILESYSTEM, o.oldPath)
+                res, s = self.esm.search_exact_path(AGAVE_FILESYSTEM, o.oldPath)
                 cnt = 0
                 if res.hits.total:
                     while cnt <= res.hits.total - len(res):
                         for obj in s[cnt:cnt + len(res)]:
                             regex = r'^{}'.format(o.oldPath)
-                            obj.update(path = re.sub(regex, join(o.path, o.name), obj.path, count = 1), deleted = True, oldPath = join(obj.path, obj.name))
-                            obj.update(agavePath = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(obj.path, obj.name)))
+                            self.esm.update(obj.meta.id, path = re.sub(regex, join(o.path, o.name), obj.path, count = 1), deleted = True, oldPath = join(obj.path, obj.name))
+                            self.esm.update(obj.meta.id, agavePath = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(obj.path, obj.name)))
                             logger.info('Object moved into trash {}'.format(obj.to_dict()))
                         cnt += len(res)
 
@@ -183,11 +186,11 @@ class Indexer(object):
         return ret
             
     def index(self):
-        logger.info('initializing: {}'.format(self.start_path))
+        logger.debug('initializing: {}'.format(self.start_path))
         for root, dirs, files in walk(self.start_path):
             if self.is_home_dir(root):
                 dirs[:] = [d for d in dirs if d != '.Trash']
-            res, s = Object.search_exact_path(AGAVE_FILESYSTEM, root, self.del_path)
+            res, s = self.esm.search_exact_path(AGAVE_FILESYSTEM, root, self.del_path)
             indexed_objs = [o for o in s.scan()]
             indexed_filenames = [o.name for o in indexed_objs if o.name != '.Trash']
             fs_filenames = dirs + files
@@ -197,19 +200,15 @@ class Indexer(object):
             if self.mgr is not None and len(objs_to_delete) >= 1:
                 self.check_deleted(objs_to_delete)
                 dirs[:] = [d for d in dirs if d not in [nd.name for nd in objs_to_delete]]
-                #logger.info('dirs: {}'.format(dirs))
-            if root == self.start_path:
-                logger.info('Done with first level, fire up permissions')
 
-#def main(argv):
-#    if len(argv) < 6:
-#        usage()
-#        return
-#
-#    start_path = argv[0]
-#    del_path = argv[1]
-#    indexer = Indexer(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5])
-#    indexer.index()
-#
-#if __name__ == '__main__':
-#    main(sys.argv[1:])
+def main(settings):
+    indexer = Indexer(settings.indexer.root_path, 
+                      settings.indexer.path_to_index_root, 
+                      settings.indexer.system_id, 
+                      settings.indexer.api_server, 
+                      settings.indexer.token, 
+                      settings.indexer.refresh_token, 
+                      hosts = settings.indexer.hosts,
+                      index = settings.indexer.index,
+                      doc_type = settings.indexer.doc)
+    indexer.index()

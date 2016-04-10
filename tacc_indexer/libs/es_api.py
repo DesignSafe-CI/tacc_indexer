@@ -1,24 +1,55 @@
 import elasticsearch
 import elasticsearch_dsl
 
-elasticsearch_dsl.connections.connections.configure(
-    default = {
-        'hosts': ['http://designsafe-es01.tacc.utexas.edu:9200', 'http://designsafe-es02.tacc.utexas.edu:9200'],
-        'sniff_on_start': True,
-        'sniff_on_connection_fail': True,
-        'sniffer_timeout': 60,
-        'retry_on_timeout': True,
-        'timeout': 20,
-    })
+class ESManager(object):
+    def __init__(self, hosts, sniff_on_start = True, sniff_on_connection_fail = True, sniffer_timeout = 60, retry_on_timeout = True, timeout = 20, index = None, doc_type = None):
+        es = elasticsearch.Elasticsearch(hosts, sniff_on_start = sniff_on_start,
+                           sniff_on_connection_fail = sniff_on_connection_fail,
+                           sniffer_timeout = sniffer_timeout,
+                           retry_on_timeout = retry_on_timeout,
+                           timeout = timeout)
+        self.es = es
+        self.index = index
+        self.doc_type = doc_type
 
-class Object(elasticsearch_dsl.DocType):
-    @classmethod
-    def search_exact_path(cls, system_id, path, del_path = None):
+    def _search(self, q):
+        s = elasticsearch_dsl.Search(using = self.es,
+                                     index = self.index,
+                                     doc_type = self.doc_type)
+        s.update_from_dict(q)
+        return s.execute(), s
+
+    def _sanitize_path(self, path, del_path):
+        ret_path = path
         if del_path is not None:
-            path = path.replace(del_path, '', 1).strip('/')
-        if path == '.' or path == '':
-            path = '/'
+            ret_path = ret_path.replace(del_path, '', 1).strip('/')
+        if ret_path == '.' or ret_path == '':
+            ret_path = '/'
+        return ret_path
+
+    def search_partial_path(self, system_id, path, del_path = None):
         #print 'Searching in root: {}'.format(path)
+        path = self._sanitize_path(path, del_path)
+        q = {"query":{
+                "bool":{
+                    "must":[
+                        {"term":{
+                            "path._path":path
+                            }
+                        }, 
+                        {"term": {
+                            "systemId": system_id
+                            }
+                        }
+                    ]
+                    }
+                }
+            }
+        return self._search(q)
+
+    def search_exact_path(self, system_id, path, del_path = None):
+        #print 'Searching in root: {}'.format(path)
+        path = self._sanitize_path(path, del_path)
         q = {"query":{
                 "bool":{
                     "must":[
@@ -34,16 +65,10 @@ class Object(elasticsearch_dsl.DocType):
                     }
                 }
             }
-        s = cls.search()
-        s.update_from_dict(q)
-        return s.execute(), s
+        return self._search(q)
 
-    @classmethod
-    def get_exact_filepath(cls, system_id, path, name, del_path = None):
-        if del_path is not None:
-            path = path.replace(del_path, '', 1).strip('/')
-        if path == '.' or path == '':
-            path = '/'
+    def get_exact_filepath(self, system_id, path, name, del_path = None):
+        path = self._sanitize_path(path, del_path)
         q = {"query":{
                 "bool":{
                     "must":[
@@ -63,24 +88,23 @@ class Object(elasticsearch_dsl.DocType):
                     }
                 }
             }
-        s = cls.search()
-        s.update_from_dict(q)
-        s = s.execute()
-        if s.hits.total:
-            return s[0]
+        res, s = self._search(q)                
+        if res.hits.total:
+            return res[0]
         else:
             return None
-    def save(self, using=None, index=None, validate=True, **kwargs):
-        #print 'Searching for path: {}, name: {}'.format(self.path, self.name)
-        o = self.__class__.get_exact_filepath(self.path, self.name, '')
-        #print 'search result: {}'.format(o.to_dict())
-        if o is not None:
-            o.update(**o.to_dict())
-            return True
-        else:
-            return super(Object, self).save(using = using, index = index, validate = validate, **kwargs)
 
-    class Meta:
-        index = 'testing'
-        doc_type = 'objects'
+    def update(self, doc_id, **fields):
+        self.es.update(self.index, self.doc_type, doc_id, {'doc': fields})
 
+    def save(self, doc):
+        c = self.es.create(self.index, self.doc_type, doc)
+        o = self.es.get(self.index, c['_id'], self.doc_type)
+        ret = o
+        return ret
+
+    def delete(self, doc):
+        self.es.delete(self.index, self.doc_type, doc.meta.id)
+
+class Obj(elasticsearch_dsl.DocType):
+    pass

@@ -20,19 +20,21 @@ def get_analyzers(index):
         analysis = {'analysis': settings.pop('analysis')}
     return analysis
 
-def main(argv):
-    i_from = argv[0]
-    i_to = argv[1]
-    es = Elasticsearch(['http://designsafe-es01.tacc.utexas.edu:9200/', 'http://designsafe-es02.tacc.utexas.edu:9200/'])
-    index = get_data_from_index(es, i_from)
+def main(settings):
+    es = Elasticsearch(settings.hosts)
+    index = get_data_from_index(es, settings.creator.from_index)
     analyzers = get_analyzers(index)
     mappings = index['mappings']
     #print 'Analyzers: {}'.format(analyzers)
     #print 'Mapping: {}'.format(mappings)
     
-    if es.indices.exists(i_to):
-        print 'new_index: {} exists. Deleting...'.format(i_to)
-        es.indices.delete(i_to)
+    if es.indices.exists(settings.creator.index):
+        r = 'Y'
+        if not settings.creator.yes:
+            r = raw_input('%s index exists, do you want to delete it? [Y/n]' % settings.creator.index)
+        if r.lower() != 'n':
+            print 'new_index: {} exists. Deleting...'.format(settings.creator.index)
+            es.indices.delete(settings.creator.index)
     else:
         print 'new_index: {} dosn\'t exists'.format(i_to)
-    es.indices.create(i_to, {'settings': analyzers, 'mappings': mappings})
+    es.indices.create(settings.creator.index, {'settings': analyzers, 'mappings': mappings})
