@@ -84,3 +84,27 @@ optional arguments:
 -  --config CONFIG       Specify config file. If every argument is listed in the config file then it is not necessary to specify it in the command line.
 -  -H [HOSTS [HOSTS ...]], --hosts [HOSTS [HOSTS ...]]
                         One or more hosts to use to connect to ElasticSearch
+
+## Config File
+
+The config file data is only used by `tim` and `tim-backup`. The property `indexer` configures the command `tim` and the property `backuper` configures `tim-backup`.
+
+    {
+        "hosts": ["http://designsafe-es01.tacc.utexas.edu:9200/", "http://designsafe-es01.tacc.utexas.edu:9200/"],
+        "indexer": {
+                "root_path": "/Users/xirdneh/indexer_test",
+                "path_to_index_root": "/Users/xirdneh/indexer_test",
+                "system_id": "designsafe.storage.default",
+                "api_server": null,
+                "token": null,
+                "refresh_token": null,
+                "index": "tester",
+                "doc": "objects"
+            },
+        "backuper": {
+            "from_index": "tester",
+            "index": "designsafe_backup",
+            "doc_type": "objects",
+            "props_to_exclue": ["_id" ]
+        }
+    }
