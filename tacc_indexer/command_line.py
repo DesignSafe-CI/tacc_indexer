@@ -52,14 +52,7 @@ def create_index():
         args = parser.parse_args()
         settings.set_args('creator', args)
     except ArgumentParserError as e:
-        error = e.message
-        try:
-            args = parent_parser.parse_args(sys.argv[1:])
-            if getattr(args, 'config', None) is None:
-                parser.error(error, True)
-            settings.set_config_file(args.config)                    
-        except ArgumentParserError as err:
-            parser.error(error, True)
+        parser.error(error, True)
 
     ci_util.main(settings)
 
@@ -68,7 +61,7 @@ def backup_index():
     parser.add_argument('from_index', help="Index/Alias from where to copy data.")
     parser.add_argument('index', help="Index to copy data into. This should be an existent index if you don't want ES to setup things automatically.")
     parser.add_argument('doc_type', help="Document type to copy.")
-    parser.add_argument('props_to_exclude', help="Comma separated list of the properties to exclude when copying the documents")
+    parser.add_argument('props_to_exclude', help="List of the properties to exclude when copying the documents", nargs = '*', default=[])
     try:
         args = parser.parse_args()
         settings.set_args('config', args)
@@ -82,4 +75,4 @@ def backup_index():
         except ArgumentParserError as err:
             parser.error(error, True)
         
-    bi_util.main()
+    bi_util.main(settings)

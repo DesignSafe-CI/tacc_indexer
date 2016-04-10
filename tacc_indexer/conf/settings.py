@@ -15,12 +15,21 @@ class Settings(object):
 
     def set_config_file(self, config_file):
         self._config_file = config_file
-        config_json = json.loads(config_file)
+        with open(self._config_file) as f:
+            config_json = json.load(f)
         for key, val in six.iteritems(config_json):
             k = getattr(self, key)
-            for p, v in six.iteritems(val):
-                setattr(k, p, v)
+            if isinstance(val, dict):
+                for p, v in six.iteritems(val):
+                    setattr(k, p, v)
+            else:
+                setattr(self, key, val)
 
+        indexer = getattr(config_json, 'indexer', None)
+        if indexer is not None:
+            self.index = getattr(indexer, 'index', None)
+            self.doc_type = getattr(indexer, 'doc_type', None)
+        
     def set_args(self, name, args):
         for prop, val in six.iteritems(args.__dict__):
             if prop.startswith('_'):

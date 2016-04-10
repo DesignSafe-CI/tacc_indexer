@@ -30,13 +30,15 @@ def make_expand(props):
         return action, data.get('_source', data)
     return expand_action
 
-def main(argv):
+def main(settings):
     props = ('_index', '_parent', '_percolate', '_routing', '_timestamp',
             '_ttl', '_type', '_version', '_version_type', '_id', '_retry_on_conflict')
-    if len(argv) >= 4:
-	    props = tuple(p for p in props if p not in argv[3].split(','))
+    if settings.backuper.props_to_exclue is not None:
+	    props = tuple(p for p in props if p not in settings.backuper.props_to_exclue)
 
-    es = Elasticsearch(['designsafe-es01.tacc.utexas.edu', 'designsafe-es02.tacc.utexas.edu'])
-    print 'copying from {} to {}, documents {}'.format(argv[0], argv[1], argv[2])
-    success, failed = helpers.reindex(es, argv[0], argv[1], scan_kwargs={'doc_type': argv[2]}, bulk_kwargs = {'expand_action_callback': make_expand(props)})
+    es = Elasticsearch(settings.hosts)
+    print 'copying from {} to {}, documents {}'.format(settings.backuper.from_index, settings.backuper.index, settings.backuper.doc_type)
+
+    success, failed = helpers.reindex(es, settings.backuper.from_index, settings.backuper.index, scan_kwargs={'doc_type': settings.backuper.doc_type}, bulk_kwargs = {'expand_action_callback': make_expand(props)})
+
     print 'Documents copied: {}. Documents Failed {}'.format(success, failed)

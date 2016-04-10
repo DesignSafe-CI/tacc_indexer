@@ -208,7 +208,7 @@ def main(settings):
                       settings.indexer.api_server, 
                       settings.indexer.token, 
                       settings.indexer.refresh_token, 
-                      hosts = settings.indexer.hosts,
+                      hosts = settings.hosts,
                       index = settings.indexer.index,
                       doc_type = settings.indexer.doc)
     indexer.index()
