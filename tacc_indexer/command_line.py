@@ -25,6 +25,7 @@ def index():
     parser.add_argument('root_path', help="Path to start traversing for indexing.")
     parser.add_argument('path_to_index_root', help="Path to handle as '/'. This means that it will be removed from the full filepath.")
     parser.add_argument('system_id', help="System Id to use when creating the documents.")
+    parser.add_argument('-single', '--single', help="If set bulk operations will not be used. Single operations for each of the documents will be used.", action = 'store_true', default = False)
     parser.add_argument('-a', '--api_server', help="Api Server URL to use with agavepy.")
     parser.add_argument('-t', '--token', help="Token to use with agavepy.")
     parser.add_argument('-r', '--refresh_token', help="Agave OAuth refresh token to use with agavepy.")
