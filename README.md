@@ -90,6 +90,7 @@ optional arguments:
 The config file data is only used by `tim` and `tim-backup`. The property `indexer` configures the command `tim` and the property `backuper` configures `tim-backup`.
 
     {
+        "verbosity": false,
         "hosts": ["http://designsafe-es01.tacc.utexas.edu:9200/", "http://designsafe-es01.tacc.utexas.edu:9200/"],
         "indexer": {
                 "root_path": "/Users/xirdneh/indexer_test",

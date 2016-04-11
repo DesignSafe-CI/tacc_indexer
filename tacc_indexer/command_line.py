@@ -2,6 +2,7 @@ from tacc_indexer.libs import create_index  as ci_util
 from tacc_indexer.libs import backup_index as bi_util
 from tacc_indexer.libs import indexer as i_util
 from tacc_indexer.conf.settings import settings
+from time import time
 import sys
 import argparse
 
@@ -14,7 +15,7 @@ class ErrorHandleArgumentParser(argparse.ArgumentParser):
         super(ErrorHandleArgumentParser, self).error(message)
 
 parent_parser = ErrorHandleArgumentParser(add_help=False)
-parent_parser.add_argument('-v', '--verbosity', action='count', default = 0, help = 'increases output verbosity', required=False)
+parent_parser.add_argument('-v', '--verbosity', action='store_true', default = False, help = 'increases output verbosity', required=False)
 parent_parser.add_argument('--config', help = 'Specify config file. If every argument is listed in the config file then it is not necessary to specify it in the command line. See README for a config file example', required=False)
 parent_parser.add_argument('-H', '--hosts', help = 'One or more hosts to use to connect to ElasticSearch', nargs='*', required=False, default = ['http://designsafe-es01.tacc.utexas.edu:9200/', 'http://designsafe-es01.tacc.utexas.edu:9200/'])
 
@@ -41,7 +42,10 @@ def index():
             settings.set_config_file(args.config) 
         except ArgumentParserError as err:
             parser.error(error, True)
+    t0 = time()
     i_util.main(settings)
+    t1 = time()
+    sys.stdout.write('Accurate enough running time: {}\n'.format(t1 - t0))
 
 def create_index():
     parser = ErrorHandleArgumentParser(description = 'Creates an empty index copying settings and mappings from another given index', parents=[parent_parser])
@@ -52,9 +56,11 @@ def create_index():
         args = parser.parse_args()
         settings.set_args('creator', args)
     except ArgumentParserError as e:
-        parser.error(error, True)
-
+        parser.error(e.message, True)
+    t0 = time()
     ci_util.main(settings)
+    t1 = time()
+    sys.stdout.write('Accurate enough running time: {}\n'.format(t1 - t0))
 
 def backup_index():
     parser = ErrorHandleArgumentParser(description = "Copy all data from one given index to another", parents=[parent_parser])
@@ -74,5 +80,7 @@ def backup_index():
             settings.set_config_file(args.config)
         except ArgumentParserError as err:
             parser.error(error, True)
-        
+    t0 = time()    
     bi_util.main(settings)
+    t1 = time()
+    sys.stdout.write('Accurate enough running time: {}\n'.format(t1 - t0))

@@ -3,20 +3,21 @@ from requests.exceptions import ConnectionError, HTTPError
 from os.path import join, split
 import urllib
 import logging
+import sys
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-"""
-# Use this if you want to log to a file
-LOG_FILENAME = 'path/to/file/name'
-handler = logging.handlers.TimedRotatingFileHandler(LOG_FILENAME, when='D', interval = 1, backupCount = 5)
-"""
-# Handler to log to std.err
-handler = logging.StreamHandler()
-
-formatter = logging.Formatter('[INDEXER] %(levelname)s %(asctime)s %(module)s %(name)s.%(funcName)s:%(lineno)s : %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+#logger = logging.getLogger(__name__)
+#logger.setLevel(logging.DEBUG)
+#"""
+## Use this if you want to log to a file
+#LOG_FILENAME = 'path/to/file/name'
+#handler = logging.handlers.TimedRotatingFileHandler(LOG_FILENAME, when='D', interval = 1, backupCount = 5)
+#"""
+## Handler to log to std.err
+#handler = logging.StreamHandler()
+#
+#formatter = logging.Formatter('[INDEXER] %(levelname)s %(asctime)s %(module)s %(name)s.%(funcName)s:%(lineno)s : %(message)s')
+#handler.setFormatter(formatter)
+#logger.addHandler(handler)
 
 
 class AgaveManager(object):
@@ -28,7 +29,7 @@ class AgaveManager(object):
     def set_owner_pems(self, system_id, path):
         owner = path.split('/')[0]
         if not len(owner):
-            logger.error('Couldn\'t figure out the owner of: {}'.format(path))
+            sys.stderr.write('Couldn\'t figure out the owner of: {}\n'.format(path))
             return False
         
         args = {
@@ -42,13 +43,12 @@ class AgaveManager(object):
         try:
             self.agave_client.files.updatePermissions(**args)
         except (AgaveException, HTTPError) as e:
-            logger.error('Error {} when trying to update the permissions using this args: {}'.format(e.message, args), exc_info = True)
+            sys.stderr.write('Error {} when trying to update the permissions using this args: {}\n'.format(e.message, args), exc_info = True)
             return False
 
         return True
 
     def mkdir(self, system_id, path, name):
-        logger.info('Creating folder: {}'.format(path + '/' + name))
         args = {
             'systemId': system_id,
             'filePath': urllib.quote(path),
@@ -58,7 +58,7 @@ class AgaveManager(object):
             self.agave_client.files.manage(**args)
             self.set_owner_pems(system_id, path + '/' + name)
         except (AgaveException, HTTPError) as e:
-            logger.error('Error {} trying to mkdir using this args: {}'.format(e.message, args), exc_info = True)
+            sys.stderr.write('Error {} trying to mkdir using this args: {}\n'.format(e.message, args), exc_info = True)
 
     def move(self, system_id, path, new_path):
         new_path = urllib.unquote(new_path)
@@ -72,7 +72,7 @@ class AgaveManager(object):
             self.agave_client.files.manage(**args)
             return True
         except (AgaveException, HTTPError) as e:
-            logger.error('Error {} trying to move using this args: {}'.format(e.message, args), exc_info = True)
+            sys.stderr.write('Error {} trying to move using this args: {}\n'.format(e.message, args), exc_info = True)
             return False
 
     def rename(self, system_id, path, new_name):
@@ -86,5 +86,5 @@ class AgaveManager(object):
             self.agave_client.files.manage(**args)
             return True
         except (AgaveException, HTTPError) as e:
-            logger.error('Error {} trying to rename using this args: {}'.format(e.message, args), exc_info = True)
+            sys.stderr.write('Error {} trying to rename using this args: {}\n'.format(e.message, args), exc_info = True)
             return False

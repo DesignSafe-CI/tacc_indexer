@@ -3,30 +3,14 @@ from os import walk, stat
 from datetime import datetime
 from tacc_indexer.libs.es_api import ESManager, Obj
 from tacc_indexer.libs.agave import AgaveManager
+import elasticsearch
 import sys
-import getopt
 import re
-import logging
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-"""
-# Use this if you want to log to a file
-LOG_FILENAME = 'path/to/file/name'
-handler = logging.handlers.TimedRotatingFileHandler(LOG_FILENAME, when='D', interval = 1, backupCount = 5)
-"""
-# Handler to log to std.err
-handler = logging.StreamHandler()
-
-formatter = logging.Formatter('[INDEXER] %(levelname)s %(asctime)s %(module)s %(name)s.%(funcName)s:%(lineno)s : %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
 
 AGAVE_FILESYSTEM = 'designsafe.storage.default'
 
 class Indexer(object):
-    def __init__(self, start_path, del_path, system_id, api_server = None, token = None, refresh_token = None, hosts = None, **kwargs):
+    def __init__(self, start_path, del_path, system_id, api_server = None, token = None, refresh_token = None, hosts = None, verbosity = False, **kwargs):
         self.api_server = api_server
         self.token = token
         self.refresh_token = refresh_token
@@ -35,6 +19,10 @@ class Indexer(object):
         self.del_path = del_path
         self.mgr = None
         self.esm = None
+        self.verbosity = verbosity
+        self.added_cnt = 0
+        self.del_cnt = 0
+        self.doc_type = getattr(kwargs, 'doc_type', None)
         if api_server is not None:
             self.mgr = AgaveManager(api_server = api_server, token = token, refresh_token = refresh_token)
         if hosts is not None:
@@ -48,10 +36,10 @@ class Indexer(object):
         deleted = False
         last_modified = stat(fn).st_ctime
         file_type = filename.split('.')[-1]
-        agave_path = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, fn.replace(self.del_path, '', 1).strip('/'))
+        agave_path = 'agave://{}/{}'.format(self.system_id, fn.replace(self.del_path, '', 1).strip('/'))
         system_tags = []
         length = getsize(fn)
-        system_id = AGAVE_FILESYSTEM
+        system_id = self.system_id
         path = filepath.replace(self.del_path, '', 1).strip('/')
         keywords = []
         type = 'file'
@@ -79,27 +67,23 @@ class Indexer(object):
             'type': type
         }
 
-    def save_obj(self, o):
-        self.esm.save(o)
-
-    def del_obj(self, path, name):
-        #print 'Searching for path: {}, name: {}'.format(path, name)
-        o = self.esm.get_exact_filepath(AGAVE_FILESYSTEM, path, name, self.del_path)
-        print '-' + join(o.path, o.name)
-        self.esm.delete(o)
-
     def index_files(self, root, files_to_index):
         #print 'objs to index'
         for name in files_to_index:
             o = self.get_index_obj(root, name)
-            print '+' + join(o['path'], o['name'])
-            self.save_obj(o)
-            #o.save()
+            if self.verbosity:
+                sys.stdout.write("indexing \t %s \t %s\n" % (join(root, name), join(o['path'], o['name'])))
+            self.esm.save(o)
+            self.added_cnt += 1
 
     def delete_indexed(self, root, files_to_delete):
         #print 'filenames to delete'
         for name in files_to_delete:
-            self.del_obj(root, name)
+            o = self.esm.get_exact_filepath(self.system_id, root, name, self.del_path)
+            if self.verbosity:
+                sys.stdout.write("deleting \t -- \t %s\n" % join(o.path, o.name))
+            self.esm.delete(o)
+            self.del_cnt += 1
 
     def remove_duplicates(self, indexed_objs):
         seen = set()
@@ -107,8 +91,9 @@ class Indexer(object):
         #print 'len inexed_objs {}'.format(len(indexed_objs))
         for o in indexed_objs:
             if o.name in seen:
-                print '-' + join(o.path, o.name)
                 self.esm.delete(o)
+                if self.verbosity:
+                    sys.stdout.write("deleting \t -- \t %s\n" % join(o.path, o.name))
             else:
                 seen.add(o.name)
                 ret.append(o)
@@ -116,7 +101,7 @@ class Indexer(object):
 
     def check_deleted(self, deleted_objs):
         home_dir = deleted_objs[0].path.split('/')[0]
-        trash = self.esm.get_exact_filepath(AGAVE_FILESYSTEM, home_dir, '.Trash')
+        trash = self.esm.get_exact_filepath(self.system_id, home_dir, '.Trash')
         if trash is None:
             trash_doc = {
                 'mimeType': 'text/directory',
@@ -126,43 +111,50 @@ class Indexer(object):
                 'lastModified': datetime.now().isoformat(),
                 'fileType': 'folder',
                 'length': 32768,
-                'agavePath': 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(home_dir, '.Trash')),
-                'systemId': AGAVE_FILESYSTEM,
+                'agavePath': 'agave://{}/{}'.format(self.system_id, join(home_dir, '.Trash')),
+                'systemId': self.system_id,
                 'path': home_dir,
                 'type': 'dir',
             }
-            trash = Obj.from_es(self.esm.save(trash_doc))
-            logger.info('Created .Trash {}'.format(trash.to_dict()))
-            self.mgr.mkdir(AGAVE_FILESYSTEM, home_dir, '.Trash')
+            sret = self.esm.save(trash_doc)
+            trash = Obj.from_es(self.esm.get(sret))
+            self.mgr.mkdir(self.system_id, home_dir, '.Trash')
+            if self.verbosity:
+                sys.stdout.write('indexing \t %s \t %s\n' % (join(home_dir, '.Trash'), join(trash.path, trash.name)))
         for o in deleted_objs:
             self.esm.update(o.meta.id, oldPath = join(o.path, o.name))
-            if self.esm.get_exact_filepath(AGAVE_FILESYSTEM, join(trash.path, trash.name), o.name) is not None:
+            if self.esm.get_exact_filepath(self.system_id, join(trash.path, trash.name), o.name) is not None:
                 new_name = o.name + '_' + datetime.now().isoformat().replace(':', '-')
-                logger.info('renaming to: {}'.format(new_name))
-                renamed = self.mgr.rename(AGAVE_FILESYSTEM, join(o.oldPath), new_name)
+                renamed = self.mgr.rename(self.system_id, o.oldPath, new_name)
                 if renamed:
+                    if self.verbosity:
+                        sys.stdout.write('renaming \t %s -> %s \t --\n' % (o.oldPath, new_name))
                     self.esm.update(o.meta.id, name = new_name)
                 else:
                     return
 
-            moved = self.mgr.move(AGAVE_FILESYSTEM, join(o.path, o.name), join(trash.path, trash.name))
+            moved = self.mgr.move(self.system_id, join(o.path, o.name), join(trash.path, trash.name))
             if moved: 
                 self.esm.update(o.meta.id, path = join(trash.path, trash.name), deleted = True)
+                self.esm.update(o.meta.id, agavePath = 'agave://{}/{}'.format(self.system_id, join(o.path, o.name)))
+                if self.verbosity:
+                    sys.stdout.write('moving \t %s -> %s \t %s -> %s\n' % (o.oldPath, join(trash.path, trash.name, o.name), o.oldPath, join(trash.path, trash.name, o.name)))
             else:
                 return
 
-            self.esm.update(o.meta.id, agavePath = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(o.path, o.name)))
-            logger.info('Object moved into trash {}'.format(o.to_dict()))
             if o.format == 'folder':
-                res, s = self.esm.search_exact_path(AGAVE_FILESYSTEM, o.oldPath)
+                res, s = self.esm.search_exact_path(self.system_id, o.oldPath)
                 cnt = 0
                 if res.hits.total:
                     while cnt <= res.hits.total - len(res):
                         for obj in s[cnt:cnt + len(res)]:
                             regex = r'^{}'.format(o.oldPath)
-                            self.esm.update(obj.meta.id, path = re.sub(regex, join(o.path, o.name), obj.path, count = 1), deleted = True, oldPath = join(obj.path, obj.name))
-                            self.esm.update(obj.meta.id, agavePath = 'agave://{}/{}'.format(AGAVE_FILESYSTEM, join(obj.path, obj.name)))
-                            logger.info('Object moved into trash {}'.format(obj.to_dict()))
+                            old_path = join(obj.path, obj.name)
+                            new_path = re.sub(regex, join(o.path, o.name), obj.path, count = 1)
+                            self.esm.update(obj.meta.id, path = new_path, deleted = True, oldPath = old_path)
+                            self.esm.update(obj.meta.id, agavePath = 'agave://{}/{}'.format(self.system_id, join(obj.path, obj.name)))
+                            if self.verbosity:
+                                sys.stdout.write("moving \t -- \t %s -> %s\n" % (oldPath, new_path))
                         cnt += len(res)
 
     def process_filenames(self, root, fs_filenames, indexed_filenames):
@@ -176,7 +168,7 @@ class Indexer(object):
         self.index_files(root, files_to_index)
 
         self.delete_indexed(root, files_to_delete) 
-        return files_to_index, files_to_delete
+        #return files_to_index, files_to_delete
 
     def is_home_dir(self, folder):
         path = folder.replace(self.del_path, '', 1)
@@ -186,11 +178,17 @@ class Indexer(object):
         return ret
             
     def index(self):
-        logger.debug('initializing: {}'.format(self.start_path))
+        if self.verbosity:
+            sys.stdout.write("action \t local path \t index path\n")
+            sys.stdout.write("----------------------------------\n")
         for root, dirs, files in walk(self.start_path):
+            if self.verbosity:
+                sys.stdout.write("traversing \t  %s \t %s\n" % (root, root.replace(self.del_path, '', 1)))
+
             if self.is_home_dir(root):
                 dirs[:] = [d for d in dirs if d != '.Trash']
-            res, s = self.esm.search_exact_path(AGAVE_FILESYSTEM, root, self.del_path)
+
+            res, s = self.esm.search_exact_path(self.system_id, root, self.del_path)
             indexed_objs = [o for o in s.scan()]
             indexed_filenames = [o.name for o in indexed_objs if o.name != '.Trash']
             fs_filenames = dirs + files
@@ -201,6 +199,46 @@ class Indexer(object):
                 self.check_deleted(objs_to_delete)
                 dirs[:] = [d for d in dirs if d not in [nd.name for nd in objs_to_delete]]
 
+    def actions(self, index_name, doc_type):
+        for root, dirs, files in walk(self.start_path):
+            filenames = dirs + files
+            docs = []
+            docs_names = []
+            docs_dup = []
+            if self.verbosity:                
+                sys.stdout.write("traversing \t  %s \t %s\n" % (root, root.replace(self.del_path, '', 1)))
+            res, s = self.esm.search_exact_path(self.system_id, root, self.del_path)
+            #print res.hits.total
+            if res.hits.total:
+                seen = set()
+                for d in s.scan():
+                    docs.append(d)
+                    docs_names.append(d.name)
+                    if d.name in seen:
+                        docs_dup.append(d)
+                    else:
+                        seen.add(d.name)
+            names_to_index = [n for n in filenames if n not in docs_names]
+            docs_to_delete = [d for d in docs if d.name not in filenames]
+            for n in names_to_index:
+                d = self.get_index_obj(root, n)
+                #print '+' + join(root, d['name'])
+                yield {
+                    '_op_type': 'index',
+                    '_index': index_name,
+                    '_type': doc_type,
+                    '_source': d
+                }
+            for d in docs_to_delete + docs_dup:
+                #print '-' + join(d.path, d.name)
+                yield {
+                    '_op_type': 'delete',
+                    '_index': index_name,
+                    '_type': doc_type,
+                    '_id': d.meta.id
+                }
+
+
 def main(settings):
     indexer = Indexer(settings.indexer.root_path, 
                       settings.indexer.path_to_index_root, 
@@ -210,5 +248,8 @@ def main(settings):
                       settings.indexer.refresh_token, 
                       hosts = settings.hosts,
                       index = settings.indexer.index,
-                      doc_type = settings.indexer.doc)
-    indexer.index()
+                      doc_type = settings.indexer.doc,
+                      verbosity = settings.verbosity)
+    success, fail = elasticsearch.helpers.bulk(indexer.esm.es, indexer.actions(settings.indexer.index, settings.indexer.doc))
+    if settings.verbosity:
+        sys.stdout.write('Success: {}\nErrors: {}\n'.format(success, fail))  

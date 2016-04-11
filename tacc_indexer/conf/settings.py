@@ -4,8 +4,8 @@ import six
 class Settings(object):
     _config_file = None
     _args = None
-    _verbosity = 0
     _doc_type = 'objects'
+    verbosity = False
     index = 'testing'
     doc_type = 'objects'
     hosts = ['http://designsafe-es01.tacc.utexas.edu:9200/', 'http://designsafe-es02.tacc.utexas.edu:9200/']
@@ -38,5 +38,7 @@ class Settings(object):
             setattr(k, prop, val)
         self.index = args.index
         self.doc_type = getattr(args, 'doc_type', None)
-        self.hosts = args.hosts    
+        self.hosts = args.hosts
+        self.verbosity = args.verbosity
+
 settings = Settings()

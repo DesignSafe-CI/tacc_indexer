@@ -94,14 +94,17 @@ class ESManager(object):
         else:
             return None
 
+    def get(self, doc):
+        return self.es.get(self.index, doc['_id'], self.doc_type)
+
     def update(self, doc_id, **fields):
         self.es.update(self.index, self.doc_type, doc_id, {'doc': fields})
 
     def save(self, doc):
         c = self.es.create(self.index, self.doc_type, doc)
-        o = self.es.get(self.index, c['_id'], self.doc_type)
-        ret = o
-        return ret
+        #o = self.es.get(self.index, c['_id'], self.doc_type)
+        #ret = o
+        return c
 
     def delete(self, doc):
         self.es.delete(self.index, self.doc_type, doc.meta.id)

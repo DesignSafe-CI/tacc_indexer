@@ -1,4 +1,5 @@
 from elasticsearch import Elasticsearch
+import sys
 
 def usage():
     print '<from> <new_index> Create new index from an existing index, copying _mappings and _settings'
@@ -33,8 +34,10 @@ def main(settings):
         if not settings.creator.yes:
             r = raw_input('%s index exists, do you want to delete it? [Y/n]' % settings.creator.index)
         if r.lower() != 'n':
-            print 'new_index: {} exists. Deleting...'.format(settings.creator.index)
+            if settings.verbosity:
+                sys.stdout.write('new_index: {} exists. Deleting...\n'.format(settings.creator.index))
             es.indices.delete(settings.creator.index)
     else:
-        print 'new_index: {} dosn\'t exists'.format(i_to)
+        if settings.verbosity:
+            sys.stdout.write('new_index: {} dosn\'t exists\n'.format(i_to))
     es.indices.create(settings.creator.index, {'settings': analyzers, 'mappings': mappings})
