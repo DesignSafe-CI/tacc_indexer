@@ -1,5 +1,0 @@
-[console_scripts]
-tim = tacc_indexer.command_line:index
-tim-backup = tacc_indexer.command_line:backup_index
-tim-create = tacc_indexer.command_line:create_index
-
