@@ -31,8 +31,8 @@ def make_expand(props):
 def main(settings):
     props = ('_index', '_parent', '_percolate', '_routing', '_timestamp',
             '_ttl', '_type', '_version', '_version_type', '_id', '_retry_on_conflict')
-    if settings.backuper.props_to_exclue is not None:
-	    props = tuple(p for p in props if p not in settings.backuper.props_to_exclue)
+    if settings.backuper.props_to_exclude is not None:
+	    props = tuple(p for p in props if p not in settings.backuper.props_to_exclude)
 
     es = Elasticsearch(settings.hosts)
     if settings.verbosity:

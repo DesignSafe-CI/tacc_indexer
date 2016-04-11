@@ -70,7 +70,7 @@ def backup_index():
     parser.add_argument('props_to_exclude', help="List of the properties to exclude when copying the documents", nargs = '*', default=[])
     try:
         args = parser.parse_args()
-        settings.set_args('config', args)
+        settings.set_args('backuper', args)
     except ArgumentParserError as e:
         error = e.message
         try:
