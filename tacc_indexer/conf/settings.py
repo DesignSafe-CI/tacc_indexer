@@ -6,6 +6,7 @@ class Settings(object):
     _args = None
     _doc_type = 'objects'
     verbosity = False
+    single = False
     index = 'testing'
     doc_type = 'objects'
     hosts = ['http://designsafe-es01.tacc.utexas.edu:9200/', 'http://designsafe-es02.tacc.utexas.edu:9200/']
@@ -40,5 +41,6 @@ class Settings(object):
         self.doc_type = getattr(args, 'doc_type', None)
         self.hosts = args.hosts
         self.verbosity = args.verbosity
+        self.single = args.single
 
 settings = Settings()

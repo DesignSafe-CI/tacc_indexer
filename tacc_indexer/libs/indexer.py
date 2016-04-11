@@ -41,6 +41,7 @@ class Indexer(object):
         length = getsize(fn)
         system_id = self.system_id
         path = filepath.replace(self.del_path, '', 1).strip('/')
+        username = path.split('/')[0]
         keywords = []
         type = 'file'
         if isdir(fn):
@@ -51,6 +52,7 @@ class Indexer(object):
             file_type = 'folder'
         if path == '.' or path == '':
             path = '/'
+            username = name
         return {
             'mimeType': mime_type,
             'name': name,
@@ -64,7 +66,17 @@ class Indexer(object):
             'systemId': system_id,
             'path': path,
             'keywords': keywords,
-            'type': type
+            'type': type,
+            'permissions': [{
+                'username': username,
+                'recursive': True,
+                'permission': {
+                    'read': True,
+                    'write': True,
+                    'execute': True
+                }
+            }
+            ]
         }
 
     def index_files(self, root, files_to_index):
@@ -250,7 +262,7 @@ def main(settings):
                       index = settings.indexer.index,
                       doc_type = settings.indexer.doc,
                       verbosity = settings.verbosity)
-    if settings.single:
+    if settings.indexer.single:
         indexer.index()
         if settings.verbosity:
             sys.stdout.write('Documents Added: {}\nDocuments Deleted: {}\n'.format(indexer.added_cnt, indexer.del_cnt))  
