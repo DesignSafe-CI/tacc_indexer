@@ -41,6 +41,6 @@ class Settings(object):
         self.doc_type = getattr(args, 'doc_type', None)
         self.hosts = args.hosts
         self.verbosity = args.verbosity
-        self.single = args.single
+        self.single = getattr(args, 'single', None)
 
 settings = Settings()
