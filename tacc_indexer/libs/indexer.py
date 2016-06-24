@@ -43,11 +43,11 @@ class Indexer(object):
         path = filepath.replace(self.del_path, '', 1).strip('/')
         username = path.split('/')[0]
         keywords = []
-        type = 'file'
+        f_type = 'file'
         if isdir(fn):
             #print 'is Dir'
             mime_type = 'text/directory'
-            type = 'dir'
+            f_type = 'dir'
             format = 'folder'
             file_type = 'folder'
         if path == '.' or path == '':
@@ -61,12 +61,10 @@ class Indexer(object):
             'lastModified': datetime.fromtimestamp(last_modified).isoformat(),
             'fileType': file_type,
             'agavePath': agave_path,
-            'systemTags': system_tags,
             'length': length,
             'systemId': system_id,
             'path': path,
-            'keywords': keywords,
-            'type': type,
+            'type': f_type,
             'permissions': [{
                 'username': username,
                 'recursive': True,
