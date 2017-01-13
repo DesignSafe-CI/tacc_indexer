@@ -3,6 +3,7 @@ from tacc_indexer.libs import backup_index as bi_util
 from tacc_indexer.libs import indexer as i_util
 from tacc_indexer.conf.settings import settings
 from time import time
+import datetime
 import sys
 import argparse
 
@@ -86,6 +87,7 @@ def index():
             settings.set_config_file(args.config) 
         except ArgumentParserError as err:
             parser.error(error, True)
+    sys.stdout.write('Starting indexing. {}'.format(datetime.datetime.now().isoformat()))
     t0 = time()
     i_util.main(settings)
     t1 = time()

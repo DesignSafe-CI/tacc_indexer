@@ -231,7 +231,11 @@ class Indexer(object):
             names_to_index = [n for n in filenames if n not in docs_names]
             docs_to_delete = [d for d in docs if d.name not in filenames]
             for n in names_to_index:
-                d = self.get_index_obj(root, n)
+                try:
+                    d = self.get_index_obj(root, n)
+                except OSError as err:
+                    sys.stdout.write("Error while traversing files: {}\nContinuing traversing.".format(err))
+                    continue
                 #print '+' + join(root, d['name'])
                 yield {
                     '_op_type': 'index',
