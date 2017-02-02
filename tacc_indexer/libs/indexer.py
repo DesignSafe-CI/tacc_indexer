@@ -269,6 +269,7 @@ def main(settings):
         if settings.verbosity:
             sys.stdout.write('Documents Added: {}\nDocuments Deleted: {}\n'.format(indexer.added_cnt, indexer.del_cnt))  
     else:
-        success, fail = elasticsearch.helpers.bulk(indexer.esm.es, indexer.actions(settings.indexer.index, settings.indexer.doc))
+        success, fail = elasticsearch.helpers.bulk(indexer.esm.es, indexer.actions(settings.indexer.index, settings.indexer.doc),
+                                                   raise_on_error=False, raise_on_exception=False)
         if settings.verbosity:
             sys.stdout.write('Success: {}\nErrors: {}\n'.format(success, fail))  
